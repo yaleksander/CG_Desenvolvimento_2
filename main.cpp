@@ -27,13 +27,9 @@ int   last_x, last_y;
 int moving = -1;
 // quantidade de pontos
 int quant = 0;
-// controle para mostrar/esconder pontos e linhas de construção
-bool verPontos = true;
-bool verLinhas = true;
 // vetor com as coordenadas dos pontos
 float pontos[100][3];
 // vetor com as dimensões do ortho
-
 float orthoDim[4];
 
 void init (void);
@@ -177,7 +173,7 @@ void projec(){
 
 void orthog(){
     glOrtho(orthoDim[0], orthoDim[1], orthoDim[2], orthoDim[3], orthoDim[4], orthoDim[5]);
-
+    glDisable(GL_LIGHTING);
        glMatrixMode(GL_MODELVIEW); // Select The Modelview Matrix
        glLoadIdentity();           // Inicializa com matriz identidade
 
@@ -235,6 +231,7 @@ void orthog(){
 
 	// função para desenhar a nossa curva BSpline
 	desenhaCurva();
+   glEnable(GL_LIGHTING);
 }
 
 void mouse(int button, int state, int x, int y){
@@ -266,12 +263,6 @@ void mouse(int button, int state, int x, int y){
 	if (state == GLUT_UP)
 		moving = -1;
 }
-   if ( button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN ){
-       proj= !proj;
-       if(!proj) printf("Projecao Ortogonal.\n");
-       else      printf("Projecao Perspectiva.\n");
-   }
-
     glutPostRedisplay();
 }
 
@@ -282,11 +273,42 @@ void motion(int x, int y ){
        last_x = x;
        last_y = y;
     }
+
+    if(!proj){
+        // 'moving' tem valor -1 quando nenhum ponto está sendo arrastado e o id do ponto quando algum está
+        if (moving == -1)
+            return;
+
+        // a coordenada y é invertida por padrão
+        y = windowY - y;
+
+        // se o ponto está dentro da tela
+        if (x > 0 && x < windowX && y > 0 && y < windowY)
+        {
+            // transformando as coordenadas da tela em coordenadas do ortho:
+            // Proporção = 'T'atual * ('O'final - 'O'inicial) / 'T'max
+            // O'atual' = (Proporção + 'O'inicial) / 'O'inicial = Proporção / 'O'inicial + 1
+            // a variável é multiplicada por -1 porque 'O'inicial é sempre negativo
+            float a = -(((float) x * (orthoDim[1] - orthoDim[0]) / (float) windowX) / orthoDim[0] + 1);
+            float b = -(((float) y * (orthoDim[3] - orthoDim[2]) / (float) windowY) / orthoDim[2] + 1);
+
+            // atualiza a posição do ponto e manda a tela fazer o desenho de novo
+            pontos[moving][0] = a;
+            pontos[moving][1] = b;
+            glutPostRedisplay();
+        }
+    }
+
    glutPostRedisplay();
 }
 
 void keyboard(unsigned char key, int x, int y){
    switch (key){
+        case 'p':
+           proj= !proj;
+           if(!proj) printf("Projecao Ortogonal.\n");
+           else      printf("Projecao Perspectiva.\n");
+        break;
       case 27 :
          exit(0);
       break;
@@ -371,11 +393,11 @@ void selectPoint(int x, int y, bool left){
 	}
 
 	// se a variável booleana 'left' for falsa, o botão direito foi clicado, o que significa que o ponto deve ser apagado
-	if (p >= 0 && !left && verPontos)
+	if (p >= 0 && !left)
 		erasePoint(p);
 
 	// se 'left' for verdadeira, o botão esquerdo foi clicado, o que significa que o usuário pode mover um ponto
-	if (p >= 0 && left && verPontos)
+	if (p >= 0 && left)
 		moving = p;
 
 	// caso 'p' seja -1, nenhum ponto foi selecionado pois todos estão muito longe. É criado um ponto novo então
@@ -419,8 +441,7 @@ void BSpline(float vet[4][2]){
 
 	// aqui a linha começa a ser desenhada efetivamente
 	glBegin(GL_LINE_STRIP);
-		for(int i = 0; i <= THICKN; i++)
-		{
+		for(int i = 0; i <= THICKN; i++){
 			// Cria os intervalos variando de 0 a 1
 			intervalo = (float) i / THICKN;
 
@@ -433,8 +454,7 @@ void BSpline(float vet[4][2]){
 			// Equação para calculo da posição do ponto para um intervalo t
 			// S(t) = T * 1/6 * M * P
 			for(int j = 0; j < 4; j++)
-				for(int k = 0; k < 4; k++)
-				{
+				for(int k = 0; k < 4; k++)				{
 					pontoAux[0] += mtrIntrv[k] * (1.0 / 6) * mtrTrnsf[k][j] * vet[j][0];
 					pontoAux[1] += mtrIntrv[k] * (1.0 / 6) * mtrTrnsf[k][j] * vet[j][1];
 				}
