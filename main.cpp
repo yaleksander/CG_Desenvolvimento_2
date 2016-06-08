@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <cmath>
+#include <fstream>
 
 // número máximo de pontos
 #define MAXNUM 100
@@ -14,6 +15,9 @@
 // só pra não precisar escrever std:: antes de qualquer operação básica de entrada ou saída
 using namespace std;
 
+
+
+string str_aux;
 float angle = 0, raio = 0.8;
 int enableMenu = 0;
 int distancia = 25;
@@ -302,15 +306,40 @@ void motion(int x, int y ){
    glutPostRedisplay();
 }
 
+
 void keyboard(unsigned char key, int x, int y){
-   switch (key){
+    ofstream arquivo;
+    ifstream arquivo2 ( "Curva_salva.txt" );
+    switch (key){
         case 'p':
-           proj= !proj;
-           if(!proj) printf("Projecao Ortogonal.\n");
-           else      printf("Projecao Perspectiva.\n");
+            proj= !proj;
+            if(!proj) printf("Projecao Ortogonal.\n");
+            else      printf("Projecao Perspectiva.\n");
         break;
-      case 27 :
-         exit(0);
+        case 's':
+            arquivo.open ("Curva_salva.txt");
+                arquivo << quant;
+                arquivo << "\n";
+                for(int i = 0; i < quant; i++){
+                    for(int k = 0; k < 3; k++){
+                        arquivo << pontos[i][k];
+                        arquivo << "\n";
+                    }
+                }
+            arquivo.close();
+        break;
+        case 'c':
+                getline (arquivo2, str_aux);
+                quant = atoi(str_aux.c_str());
+            for( int i = 0; i < quant; i++ ){
+                for( int k = 0; k < 3; k++ ){
+                    getline (arquivo2, str_aux);
+                    pontos[i][k] = atof(str_aux.c_str());
+                }
+            }
+        break;
+        case 27 :
+            exit(0);
       break;
    }
    glutPostRedisplay();
