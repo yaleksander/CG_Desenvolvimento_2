@@ -34,7 +34,7 @@ int quant = 0;
 // vetor com as coordenadas dos pontos
 float pontos[100][3];
 // vetor com as dimensões do ortho
-float orthoDim[4];
+float orthoDim[4] = {-1.0, 1.0, -1.0, 1.0};
 
 void init (void);
 void reshape( int w, int h);
@@ -95,10 +95,10 @@ void init (void){
 }
 
 void reshape( int w, int h){
-   windowY = w;
-   windowX = h;
+   windowX = w;
+   windowY = h;
    glViewport(0,0,w,h);
-    if (w <= h){
+/*    if (w <= h){
             orthoDim[0] = -1.0;
             orthoDim[1] =  1.0;
             orthoDim[2] = -1 * (GLfloat) h / (GLfloat) w;
@@ -109,7 +109,7 @@ void reshape( int w, int h){
             orthoDim[1] =  1 * (GLfloat) w / (GLfloat) h;
             orthoDim[2] = -1.0;
             orthoDim[3] =  1.0;
-        }
+        }*/
    glutPostRedisplay();
 }
 
@@ -176,7 +176,7 @@ void projec(){
 }
 
 void orthog(){
-    glOrtho(orthoDim[0], orthoDim[1], orthoDim[2], orthoDim[3], orthoDim[4], orthoDim[5]);
+    glOrtho(orthoDim[0], orthoDim[1], orthoDim[2], orthoDim[3], -1.0, 1.0);
     glDisable(GL_LIGHTING);
        glMatrixMode(GL_MODELVIEW); // Select The Modelview Matrix
        glLoadIdentity();           // Inicializa com matriz identidade
