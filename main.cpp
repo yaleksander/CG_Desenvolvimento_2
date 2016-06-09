@@ -5,389 +5,395 @@
 #include <cmath>
 #include <fstream>
 
-// número máximo de pontos
 #define MAXNUM 100
-// precisão do cursor para selecionar pontos
 #define LONGE 0.05
-// densidade (thickness) da curva BSpline
-#define THICKN 200
 
-// só pra não precisar escrever std:: antes de qualquer operação básica de entrada ou saída
 using namespace std;
-
-
 
 string str_aux;
 float angle = 0, raio = 0.8;
 int enableMenu = 0;
 int distancia = 25;
 int proj = 0;
-int windowY = 640;
+int originalX;
+int originalY;
 int windowX = 640;
+int windowY = 640;
 float viewangle = 40.0f;
 float distanciaOrigem = 30.0;
 float rotationX = 38.0, rotationY = 22.0;
-int   last_x, last_y;
+int last_x, last_y;
 int moving = -1;
-// quantidade de pontos
 int quant = 0;
-// vetor com as coordenadas dos pontos
+int smooth = 2;
+int numRotacoes = 12;
 float pontos[100][3];
-// vetor com as dimensões do ortho
-float orthoDim[4] = {-1.0, 1.0, -1.0, 1.0};
+float orthoDim[4];// = {-1.0, 1.0, -1.0, 1.0};
+bool full = false;
+bool wire = false;
 
-void init (void);
-void reshape( int w, int h);
+void init(void);
+void reshape(int w, int h);
 void display(void);
 void desenhaEixos();
 void projec();
 void orthog();
 void mouse(int button, int state, int x, int y);
-void motion(int x, int y );
+void motion(int x, int y);
 void keyboard(unsigned char key, int x, int y);
-// função auxiliar pra transformar um int em uma string
-string toString(int n);
-// função auxiliar pra calcular a distância euclidiana entre dois pontos
-float dist(float a, float b, float c, float d);
-// função auxiliar pra adicionar um ponto na tela
 void createPoint(float x, float y);
-// função auxiliar pra apagar um ponto da tela
 void erasePoint(int p);
-// função auxiliar para selecionar um ponto quando o mouse é clicado
 void selectPoint(int x, int y, bool left);
-// função auxiliar de BSpline que prepara o desenho
 void desenhaCurva(void);
-// função para desenhar a curva BSpline
 void BSpline(float vet[4][2]);
-// função para desenhar na tela
+float dist(float a, float b, float c, float d);
+string toString(int n);
 
-int main(int argc, char** argv){
-   glutInit(&argc, argv);
-   glutInitDisplayMode (GLUT_DOUBLE|GLUT_DEPTH|GLUT_RGB);
-   glutInitWindowSize (windowY, windowX);
-   glutInitWindowPosition (100, 100);
-   glutCreateWindow ("Projeções em OpenGL");
-   init ();
-   glutMouseFunc( mouse );
-   glutKeyboardFunc(keyboard);
-   glutMotionFunc( motion );
-   glutReshapeFunc( reshape );
-   glutDisplayFunc(display);
-   glutMainLoop();
+GLfloat object_ambient[]   = {0.90, 0.90, 0.90, 1.0};
+GLfloat object_difusa[]    = {0.22, 0.81, 0.58, 1.0};
+GLfloat object_especular[] = {0.36, 0.82, 0.55, 1.0};
+GLfloat object_emissao[]   = {0.00, 0.00, 0.00, 1.0};
+GLfloat object_brilho[]    = {160.0};
 
-   return 0;
+int main(int argc, char** argv)
+{
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_DEPTH | GLUT_RGB);
+	glutInitWindowSize(windowY, windowX);
+	glutInitWindowPosition(100, 100);
+	glutCreateWindow("Projeções em OpenGL");
+	init();
+	glutMouseFunc(mouse);
+	glutKeyboardFunc(keyboard);
+	glutMotionFunc(motion);
+	glutReshapeFunc(reshape);
+	glutDisplayFunc(display);
+	glutMainLoop();
+	return 0;
 }
 
-void init (void){
-   // selecionar cor de fundo (preto)
-   glClearColor (0.0, 0.0, 0.0, 0.0);
-
-   glEnable(GL_LIGHT0);                   // habilita luz 0
-   glEnable(GL_COLOR_MATERIAL);           // Utiliza cor do objeto como material
-   glColorMaterial(GL_FRONT_AND_BACK, GL_DIFFUSE);
-
-	GLfloat light0_position[] = {2.0f, 2.0f, 5.0f, 0.0f};
-   glLightfv(GL_LIGHT0, GL_POSITION, light0_position);
-
-   glEnable(GL_LIGHTING);                 // Habilita luz
-   glEnable(GL_DEPTH_TEST);               // Habilita Z-buffer
-   glEnable(GL_CULL_FACE);                // Habilita Backface-Culling
+void init(void)
+{
+	glEnable(GL_LIGHT0);
+	glEnable(GL_LIGHT1);
+	glEnable(GL_COLOR_MATERIAL);
+	glEnable(GL_NORMALIZE);
+	glColorMaterial(GL_FRONT_AND_BACK, GL_DIFFUSE);
+	GLfloat light0_position[] = { 0.0f, 2.0f, 0.0f, 0.0f};
+	GLfloat light1_position[] = { 0.0f, 2.0f, 0.0f, 0.0f};
+	glLightfv(GL_LIGHT0, GL_POSITION, light0_position);
+	glLightfv(GL_LIGHT1, GL_POSITION, light1_position);
+	GLfloat cor[] = {0.9f, 0.5f, 0.5f, 1.0};
+	glLightfv(GL_LIGHT1, GL_DIFFUSE, cor);
+	glLightfv(GL_LIGHT1, GL_SPECULAR, cor);
+	glEnable(GL_LIGHTING);
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
 }
 
-void reshape( int w, int h){
-   windowX = w;
-   windowY = h;
-   glViewport(0,0,w,h);
-/*    if (w <= h){
-            orthoDim[0] = -1.0;
-            orthoDim[1] =  1.0;
-            orthoDim[2] = -1 * (GLfloat) h / (GLfloat) w;
-            orthoDim[3] =  1 * (GLfloat) h / (GLfloat) w;
-        }
-        else{
-            orthoDim[0] = -1 * (GLfloat) w / (GLfloat) h;
-            orthoDim[1] =  1 * (GLfloat) w / (GLfloat) h;
-            orthoDim[2] = -1.0;
-            orthoDim[3] =  1.0;
-        }*/
-   glutPostRedisplay();
+void reshape(int w, int h)
+{
+	windowX = w;
+	windowY = h;
+	if (proj)
+	{
+		int menor = w < h ? w : h;
+		glViewport((w - menor) / 2, (h - menor) / 2, menor, menor);
+	}
+	else
+	{
+		glViewport(0, 0, w, h);
+		if (w <= h)
+		{
+			orthoDim[0] = -1.0;
+			orthoDim[1] =  1.0;
+			orthoDim[2] = -1 * (GLfloat) h / (GLfloat) w;
+			orthoDim[3] =  1 * (GLfloat) h / (GLfloat) w;
+		}
+		else
+		{
+			orthoDim[0] = -1 * (GLfloat) w / (GLfloat) h;
+			orthoDim[1] =  1 * (GLfloat) w / (GLfloat) h;
+			orthoDim[2] = -1.0;
+			orthoDim[3] =  1.0;
+		}
+	}
+	glutPostRedisplay();
 }
 
-void display(void){
-   // Limpar todos os pixels
-   glClear (GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-
-   // inicializar sistema de projeção
-   glMatrixMode(GL_PROJECTION);
-   glLoadIdentity();
-
-   if(!proj) orthog();
-   else projec();
-
-   desenhaEixos();
-
-   glutSwapBuffers ();
-   glutPostRedisplay();
-}
-
-void desenhaEixos(){
-   glDisable(GL_LIGHTING);
-   glColor3f (0.0, 1.0, 0.0);
-   glBegin(GL_LINES);
-      glColor3f(1.0, 0.0, 0.0);
-      glVertex3f (-distancia, 0.0, 0.0);
-      glVertex3f ( distancia, 0.0, 0.0);
-      glColor3f(0.0, 1.0, 0.0);
-      glVertex3f (0.0, -distancia, 0.0);
-      glVertex3f (0.0,  distancia, 0.0);
-      glColor3f(0.0, 0.0, 1.0);
-      glVertex3f (0.0, 0.0, -distancia);
-      glVertex3f (0.0, 0.0,  distancia);
-   glEnd();
-   glEnable(GL_LIGHTING);
-}
-
-void projec(){
-    gluPerspective(40.0f,(GLfloat)windowY/(GLfloat)windowX,0.1f,200.0f);	// Calculate The Aspect Ratio Of The Window
-
-   glMatrixMode(GL_MODELVIEW);
-   glLoadIdentity();
-
-   gluLookAt (0.0, 0.0, distanciaOrigem, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
-
-   // Movimenta a camera em torno do objeto
-   // Luz fica fixa na posição (0, 0, 5) inicialmente
-   glRotatef( rotationY, 1.0, 0.0, 0.0 );
-   glRotatef( rotationX, 0.0, 1.0, 0.0 );
-
-   glPushMatrix();
-      glColor3f (0.283, 0.456, 0.518);
-      glutSolidCube(5);
-
-      glColor3f (1.0, 1.0, 1.0);
-      glDisable(GL_LIGHTING);
-      glutWireCube(10);
-      glEnable(GL_LIGHTING);
-
-      glTranslatef(0, 0, 5);
-      glColor3f (1.0, 1.0, 1.0);
-      glutSolidSphere(2, 50, 50);
-   glPopMatrix();
-}
-
-void orthog(){
-    glOrtho(orthoDim[0], orthoDim[1], orthoDim[2], orthoDim[3], -1.0, 1.0);
-    glDisable(GL_LIGHTING);
-       glMatrixMode(GL_MODELVIEW); // Select The Modelview Matrix
-       glLoadIdentity();           // Inicializa com matriz identidade
-
-
-		// tamanho de cada ponto
-		glPointSize(10);
-
-		// cor vermelha
-		glColor3f(1.0, 0.0, 0.0);
-
-		// são desenhados os pontos
-		glBegin(GL_POINTS);
-			for (int i = 0; i < quant; i++)
-				glVertex3fv(pontos[i]);
+void display(void)
+{
+	glClearColor(0.0, 0.0, 0.0, 0.0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	/*
+	if (!proj)
+	{
+		glColor3f(0.1, 0.0, 0.1);
+		glBegin(GL_POLYGON);
+			glVertex3f(-1.0, -1.0, -0.1);
+			glVertex3f( 1.0, -1.0, -0.1);
+			glVertex3f( 1.0,  1.0, -0.1);
+			glVertex3f(-1.0,  1.0, -0.1);
 		glEnd();
+	}
+	*/
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	if (!proj)
+		orthog();
+	else
+		projec();
+	desenhaEixos();
+	glutSwapBuffers();
+	glutPostRedisplay();
+}
 
-		// cor azul com verde (parece azul claro)
-		glColor3f(0.0, 1.0, 1.0);
-
-		// são escritos os nomes dos pontos (P0, P1, P2, ..., PN)
-		for (int i = 0; i < quant; i++)
+void desenhaEixos()
+{
+	glDisable(GL_LIGHTING);
+	glColor3f(0.0, 1.0, 0.0);
+	glBegin(GL_LINES);
+		glColor3f(1.0, 0.0, 0.0);
+		if (proj)
 		{
-			// transformamos o contador numa string (com a letra 'P' na frente) para ser escrito na tela
-			string s = 'P' + toString(i);
-
-			// coordenadas do ponto
-			glRasterPos2f(pontos[i][0], pontos[i][1]);
-
-			// desenha-se a string com o nome do ponto (cada char é uma iteração)
-			for (int j = 0; j < s.size(); j++)
-				glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, s[j]);
+			glVertex3f(-distancia, 0.0, 0.0);
+			glVertex3f( distancia, 0.0, 0.0);
 		}
-
-		// cor verde
+		else
+		{
+			glVertex3f(-1.0, 0.0, 0.0);
+			glVertex3f( 1.0, 0.0, 0.0);
+		}
 		glColor3f(0.0, 1.0, 0.0);
-		for (int i = 0; i < quant - 1; i++)
+		if (proj)
 		{
-			// pegamos um ponto no vetor, o próximo ponto, criamos uma reta e atualizamos o contador
-			glBegin(GL_LINES);
-				glVertex3f(pontos[i][0], pontos[i][1], pontos[i][2]);
-				glVertex3f(pontos[i+1][0], pontos[i+1][1], pontos[i+1][2]);
-			glEnd();
+			glVertex3f(0.0, -distancia, 0.0);
+			glVertex3f(0.0,  distancia, 0.0);
 		}
+		else
+		{
+			glVertex3f(0.0, -1.0, 0.0);
+			glVertex3f(0.0,  1.0, 0.0);
+		}
+		glColor3f(0.0, 0.0, 1.0);
+		if (proj)
+		{
+			glVertex3f(0.0, 0.0, -distancia);
+			glVertex3f(0.0, 0.0,  distancia);
+		}
+		else
+		{
+			glVertex3f(0.0, 0.0, -1.0);
+			glVertex3f(0.0, 0.0,  1.0);
+		}
+	glEnd();
+	glEnable(GL_LIGHTING);
+}
 
-
-	// cor azul
-	glColor3f(0.0, 0.0, 1.0);
-
-	// espessura da linha azul
-	glLineWidth(2.0);
-
-	// por algum motivo misterioso, quando a função para definir os pontos de controle não está aqui, às vezes é criada uma linha horizontal
-	// inicialmente nós imaginamos que era um problema com o buffer, mas após uma série de tentativas e erros, decidimos usar essa função. Funcionou
-	glMap1f(GL_MAP1_VERTEX_3, 0.0, 1.0, 3, quant, &pontos[0][0]);
-
-	// função para desenhar a nossa curva BSpline
+void projec()
+{
+	int menor = windowX < windowY ? windowX : windowY;
+	glEnable(GL_SCISSOR_TEST);
+	glScissor((windowX - menor) / 2, (windowY - menor) / 2, menor, menor);
+	glClearColor(0.2, 0.0, 0.2, 0.0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	gluPerspective(10.0f, 1.0f, 0.1f, 200.0f);
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	gluLookAt(0.0, 0.0, distanciaOrigem, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+	glRotatef(rotationY, 1.0, 0.0, 0.0);
+	glRotatef(rotationX, 0.0, 1.0, 0.0);
 	desenhaCurva();
-   glEnable(GL_LIGHTING);
 }
 
-void mouse(int button, int state, int x, int y){
-    if(proj){
-       if ( button == GLUT_LEFT_BUTTON && state == GLUT_DOWN )
-       {
-          last_x = x;
-          last_y = y;
-       }
-       if (button == 3){
-            distanciaOrigem -= 1;
-       }
-       if (button == 4){
-            distanciaOrigem += 1;
-       }
-    }
-    if(!proj){
-	// a coordenada y é invertida por padrão
-	y = windowY - y;
-
-	// GLUT_DOWN é pra impedir que a função seja chamada duas vezes
-	// (uma vez quando o usuário aperta um botão e outra quando ele solta)
-	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
-		selectPoint(x, y, true);
-	if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN)
-		selectPoint(x, y, false);
-
-	// quando o botão é solto, o usuário não pode mais mover os pontos
-	if (state == GLUT_UP)
-		moving = -1;
-}
-    glutPostRedisplay();
-}
-
-void motion(int x, int y ){
-    if(proj){
-       rotationY -= (float) (y - last_y);
-       rotationX -= (float) (x - last_x);
-       last_x = x;
-       last_y = y;
-    }
-
-    if(!proj){
-        // 'moving' tem valor -1 quando nenhum ponto está sendo arrastado e o id do ponto quando algum está
-        if (moving == -1)
-            return;
-
-        // a coordenada y é invertida por padrão
-        y = windowY - y;
-
-        // se o ponto está dentro da tela
-        if (x > 0 && x < windowX && y > 0 && y < windowY)
-        {
-            // transformando as coordenadas da tela em coordenadas do ortho:
-            // Proporção = 'T'atual * ('O'final - 'O'inicial) / 'T'max
-            // O'atual' = (Proporção + 'O'inicial) / 'O'inicial = Proporção / 'O'inicial + 1
-            // a variável é multiplicada por -1 porque 'O'inicial é sempre negativo
-            float a = -(((float) x * (orthoDim[1] - orthoDim[0]) / (float) windowX) / orthoDim[0] + 1);
-            float b = -(((float) y * (orthoDim[3] - orthoDim[2]) / (float) windowY) / orthoDim[2] + 1);
-
-            // atualiza a posição do ponto e manda a tela fazer o desenho de novo
-            pontos[moving][0] = a;
-            pontos[moving][1] = b;
-            glutPostRedisplay();
-        }
-    }
-
-   glutPostRedisplay();
+void orthog()
+{
+	glOrtho(orthoDim[0], orthoDim[1], orthoDim[2], orthoDim[3], -1.0, 1.0);
+	glDisable(GL_LIGHTING);
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	glPointSize(10);
+	glColor3f(1.0, 0.0, 0.0);
+	glBegin(GL_POINTS);
+		for (int i = 0; i < quant; i++)
+			glVertex3fv(pontos[i]);
+	glEnd();
+	glColor3f(0.0, 1.0, 1.0);
+	for (int i = 0; i < quant; i++)
+	{
+		string s = 'P' + toString(i);
+		glRasterPos2f(pontos[i][0], pontos[i][1]);
+		for (int j = 0; j < s.size(); j++)
+			glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, s[j]);
+	}
+	glColor3f(1.0, 1.0, 0.0);
+	for (int i = 0; i < quant - 1; i++)
+	{
+		glBegin(GL_LINES);
+			glVertex3f(pontos[i][0], pontos[i][1], pontos[i][2]);
+			glVertex3f(pontos[i+1][0], pontos[i+1][1], pontos[i+1][2]);
+		glEnd();
+	}
+	glColor3f(0.0, 0.0, 1.0);
+	glLineWidth(2.0);
+	desenhaCurva();
+	glEnable(GL_LIGHTING);
 }
 
-
-void keyboard(unsigned char key, int x, int y){
-    ofstream arquivo;
-    ifstream arquivo2 ( "Curva_salva.txt" );
-    switch (key){
-        case 'p':
-            proj= !proj;
-            if(!proj) printf("Projecao Ortogonal.\n");
-            else      printf("Projecao Perspectiva.\n");
-        break;
-        case 's':
-            arquivo.open ("Curva_salva.txt");
-                arquivo << quant;
-                arquivo << "\n";
-                for(int i = 0; i < quant; i++){
-                    for(int k = 0; k < 3; k++){
-                        arquivo << pontos[i][k];
-                        arquivo << "\n";
-                    }
-                }
-            arquivo.close();
-        break;
-        case 'c':
-                getline (arquivo2, str_aux);
-                quant = atoi(str_aux.c_str());
-            for( int i = 0; i < quant; i++ ){
-                for( int k = 0; k < 3; k++ ){
-                    getline (arquivo2, str_aux);
-                    pontos[i][k] = atof(str_aux.c_str());
-                }
-            }
-        break;
-        case 27 :
-            exit(0);
-      break;
-   }
-   glutPostRedisplay();
+void mouse(int button, int state, int x, int y)
+{
+	if (proj)
+	{
+		if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+		{
+			last_x = x;
+			last_y = y;
+		}
+		if (button == 3)
+			distanciaOrigem -= 1;
+		if (button == 4)
+			distanciaOrigem += 1;
+	}
+	if (!proj)
+	{
+		y = windowY - y;
+		if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+			selectPoint(x, y, true);
+		if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN)
+			selectPoint(x, y, false);
+		if (state == GLUT_UP)
+			moving = -1;
+	}
+	glutPostRedisplay();
 }
 
-string toString(int n){
-	// 0 não entraria no while, então retornamos essa exceção logo de uma vez
+void motion(int x, int y)
+{
+	if (proj)
+	{
+		rotationY -= (float) (y - last_y);
+		rotationX -= (float) (x - last_x);
+		last_x = x;
+		last_y = y;
+	}
+	if (!proj)
+	{
+		if (moving == -1)
+			return;
+		y = windowY - y;
+		float a = ((float) x / windowX) * (orthoDim[1] - orthoDim[0]) + orthoDim[0];
+		float b = ((float) y / windowY) * (orthoDim[3] - orthoDim[2]) + orthoDim[2];
+		if (abs(a) < 1.0 && abs(b) < 1.0)
+		{
+			pontos[moving][0] = a;
+			pontos[moving][1] = b;
+			glutPostRedisplay();
+		}
+	}
+	glutPostRedisplay();
+}
+
+void keyboard(unsigned char key, int x, int y)
+{
+	ofstream arquivo;
+	ifstream arquivo2("Curva_salva.txt");
+	switch (key)
+	{
+		case 'p':
+			proj = !proj;
+			if (!proj)
+				cout << "Projecao Ortogonal" << endl;
+			else
+				cout << "Perspectiva" << endl;
+			break;
+		case 's':
+			arquivo.open("Curva_salva.txt");
+			arquivo << quant;
+			arquivo << "\n";
+			for (int i = 0; i < quant; i++)
+				for (int k = 0; k < 3; k++)
+				{
+					arquivo << pontos[i][k];
+					arquivo << "\n";
+				}
+			arquivo.close();
+			break;
+		case 'c':
+			getline(arquivo2, str_aux);
+			quant = atoi(str_aux.c_str());
+			for (int i = 0; i < quant; i++)
+				for (int k = 0; k < 3; k++)
+				{
+					getline(arquivo2, str_aux);
+					pontos[i][k] = atof(str_aux.c_str());
+				}
+			break;
+		case 'w':
+			wire = !wire;
+			break;
+		case 'f':
+			if (full)
+			{
+				glutReshapeWindow(originalX, originalY);
+				windowX = originalX;
+				windowY = originalY;
+			}
+			else
+			{
+				if (!glutGet(GLUT_SCREEN_WIDTH) || !glutGet(GLUT_SCREEN_HEIGHT))
+					cout << "Não é possível entrar no modo tela cheia" << endl;
+				else
+				{
+					originalX = windowX;
+					originalY = windowY;
+					windowX = glutGet(GLUT_SCREEN_WIDTH);
+					windowY = glutGet(GLUT_SCREEN_HEIGHT);
+					glutFullScreen();
+				}
+			}
+			full = !full;
+			break;
+		case 27:
+			exit(0);
+	}
+	glutPostRedisplay();
+}
+
+string toString(int n)
+{
 	if (n == 0)
 		return "0";
-
 	string s = "";
 	string t = "";
-
-	// adicionamos o último dígito do número (%10) ao final da string em cada iteração e continuamos enquanto n for diferente de 0
 	while (n)
 	{
-		// '0' é para passar o número pro padrão ANSI
 		s += (char) ('0' + n % 10);
-
-		// dividindo um int por 10, simplesmente descartamos seu último dígito. Ao dividir por 10 um int menor que 10, temos 0
 		n /= 10;
 	}
-
-	// como a string é escrita de trás pra frente devido ao funcionamento do while acima, é preciso invertê-la antes de retorná-la
 	int size = s.size();
 	for (int i = 0; i < size; i++)
 		t += s[size-i-1];
-
 	return t;
 }
 
-float dist(float a, float b, float c, float d){
+float dist(float a, float b, float c, float d)
+{
 	return sqrt((c - a) * (c - a) + (d - b) * (d - b));
 }
 
-void createPoint(float x, float y){
-	if (quant < MAXNUM)
+void createPoint(float x, float y)
+{
+	if (abs(x) < 1.0 && abs(y) < 1.0 && quant < MAXNUM)
 	{
 		pontos[quant][0] = x;
 		pontos[quant][1] = y;
 		pontos[quant][2] = 0;
-
-		// assim que o ponto é criado, já podemos associar a variável de movimento 'moving' a ele
 		moving = quant++;
 	}
 }
 
-void erasePoint(int p){
+void erasePoint(int p)
+{
 	while (++p < quant)
 	{
 		pontos[p-1][0] = pontos[p][0];
@@ -397,103 +403,149 @@ void erasePoint(int p){
 	quant--;
 }
 
-void selectPoint(int x, int y, bool left){
-	// conversão explicada anteriormente
-	float a = -(((float) x * (orthoDim[1] - orthoDim[0]) / (float) windowX) / orthoDim[0] + 1);
-	float b = -(((float) y * (orthoDim[3] - orthoDim[2]) / (float) windowY) / orthoDim[2] + 1);
-
-	// 'menor' é inicializado como a maior distância possível de forma que qualquer ponto dentro do ortho vai ter que tomar o seu lugar
+void selectPoint(int x, int y, bool left)
+{
+	float a = ((float) x / windowX) * (orthoDim[1] - orthoDim[0]) + orthoDim[0];
+	float b = ((float) y / windowY) * (orthoDim[3] - orthoDim[2]) + orthoDim[2];
 	float menor = dist(orthoDim[0], orthoDim[2], orthoDim[1], orthoDim[3]);
-
-	// 'p' indica o ponto selecionado. -1 quer dizer que nenhum ponto foi selecionado no final
 	int p = -1;
-
 	for (int i = 0; i < quant; i++)
 	{
 		float d = dist(pontos[i][0], pontos[i][1], a, b);
-
-		// escolhe o ponto mais próximo do cursor do mouse caso ele não esteja muito longe
-		// a constante 'LONGE' determina a distância máxima do cursor pro clique funcionar
 		if (d < menor && d < LONGE)
 		{
 			menor = d;
 			p = i;
 		}
 	}
-
-	// se a variável booleana 'left' for falsa, o botão direito foi clicado, o que significa que o ponto deve ser apagado
 	if (p >= 0 && !left)
 		erasePoint(p);
-
-	// se 'left' for verdadeira, o botão esquerdo foi clicado, o que significa que o usuário pode mover um ponto
 	if (p >= 0 && left)
 		moving = p;
-
-	// caso 'p' seja -1, nenhum ponto foi selecionado pois todos estão muito longe. É criado um ponto novo então
 	if (p < 0 && left)
 		createPoint(a, b);
-
-	// após criar, apagar ou mover um ponto, a tela é atualizada
 	glutPostRedisplay();
 }
 
-void desenhaCurva(void){
-	// são necessários pelo menos 4 pontos para desenhar a curva
-	if(quant > 3)
+void setMaterial(GLfloat *ambiente, GLfloat *difusa, GLfloat *especular, GLfloat *brilho, GLfloat *emissao)
+{
+	glMaterialfv(GL_FRONT, GL_AMBIENT, ambiente);
+	glMaterialfv(GL_FRONT, GL_DIFFUSE, difusa);
+	glMaterialfv(GL_FRONT, GL_SPECULAR, especular);
+	glMaterialfv(GL_FRONT, GL_SHININESS, brilho);
+	glMaterialfv(GL_FRONT, GL_EMISSION, emissao);
+}
+
+void desenhaCurva(void)
+{
+	if (quant > 3)
 	{
 		float vet[4][2];
-
-		// é feita uma iteração de 4 em 4 (0, 1, 2, 3) -> (1, 2, 3, 4) -> (2, 3, 4, 5) -> ...
-		for(int i = 0; i < quant - 3; i++)
+		for (int i = 0; i < quant - 3; i++)
 		{
-			for(int j = 0; j < 4; j++)
+			for (int j = 0; j < 4; j++)
 			{
 				vet[j][0] = pontos[i+j][0];
 				vet[j][1] = pontos[i+j][1];
 			}
-			// desenhamos o trecho da curva correspondente a esta iteração
 			BSpline(vet);
 		}
 	}
 }
 
-void BSpline(float vet[4][2]){
+void BSpline(float vet[4][2])
+{
 	float pontoAux[2];
 	float intervalo;
+	float a = 0;
+	float p[2][smooth+1][3];
 	float mtrIntrv[4];
-
-	// matriz de transformação usada nos cálculos a seguir
-	float mtrTrnsf[4][4] = {{-1,  3, -3, 1},
-				{ 3, -6,  3, 0},
-				{-3,  0,  3, 0},
+	float mtrTrnsf[4][4] = {{-1,  3, -3, 1}, 
+				{ 3, -6,  3, 0}, 
+				{-3,  0,  3, 0}, 
 				{ 1,  4,  1, 0}};
-
-	// aqui a linha começa a ser desenhada efetivamente
 	glBegin(GL_LINE_STRIP);
-		for(int i = 0; i <= THICKN; i++){
-			// Cria os intervalos variando de 0 a 1
-			intervalo = (float) i / THICKN;
-
-			// Monta a Matriz com os intervalos
+		for (int i = 0; i <= smooth; i++)
+		{
+			intervalo = (float) i / smooth;
 			mtrIntrv[0] = intervalo * intervalo * intervalo;
 			mtrIntrv[1] = intervalo * intervalo;
 			mtrIntrv[2] = intervalo;
 			mtrIntrv[3] = 1;
-
-			// Equação para calculo da posição do ponto para um intervalo t
-			// S(t) = T * 1/6 * M * P
-			for(int j = 0; j < 4; j++)
-				for(int k = 0; k < 4; k++)				{
+			for (int j = 0; j < 4; j++)
+				for (int k = 0; k < 4; k++)
+				{
 					pontoAux[0] += mtrIntrv[k] * (1.0 / 6) * mtrTrnsf[k][j] * vet[j][0];
 					pontoAux[1] += mtrIntrv[k] * (1.0 / 6) * mtrTrnsf[k][j] * vet[j][1];
+					p[0][i][0] = pontoAux[0] * cos(a * M_PI / 180);
+					p[0][i][1] = pontoAux[1];
+					p[0][i][2] = sin(a * M_PI / 180);
 				}
-
-			// Cria ponto do intervalo t
-			glVertex2f(pontoAux[0], pontoAux[1]);
-
-			// Zera os pontos para o proximo calculo
-			for(int j = 0; j < 2; j++)
+			if (!proj)
+				glVertex2f(pontoAux[0], pontoAux[1]);
+			for (int j = 0; j < 2; j++)
 				pontoAux[j] = 0;
 		}
 	glEnd();
+	if (!proj)
+		return;
+	for (int t = 0; t < numRotacoes; t++)
+	{
+		a += 360.0 / numRotacoes;
+		for (int i = 0; i <= smooth; i++)
+		{
+			intervalo = (float) i / smooth;
+			mtrIntrv[0] = intervalo * intervalo * intervalo;
+			mtrIntrv[1] = intervalo * intervalo;
+			mtrIntrv[2] = intervalo;
+			mtrIntrv[3] = 1;
+			for (int j = 0; j < 4; j++)
+				for (int k = 0; k < 4; k++)
+				{
+					pontoAux[0] += mtrIntrv[k] * (1.0 / 6) * mtrTrnsf[k][j] * vet[j][0];
+					pontoAux[1] += mtrIntrv[k] * (1.0 / 6) * mtrTrnsf[k][j] * vet[j][1];
+					p[1][i][0] = pontoAux[0] * cos(a * M_PI / 180);
+					p[1][i][1] = pontoAux[1];
+					p[1][i][2] = pontoAux[0] * sin(a * M_PI / 180);
+				}
+			for (int j = 0; j < 2; j++)
+				pontoAux[j] = 0;
+		}
+		for (int i = 1; i <= smooth; i++)
+		{
+			float v1[3], v2[3], normal[3];
+			for (int j = 0; j < 3; j++)
+			{
+				v1[j] = p[1][i][j] - p[1][i-1][j];
+				v2[j] = p[0][i-1][j] - p[1][i-1][j];
+			}
+			for (int j = 0; j < 3; j++)
+				normal[j] = (v1[(j+1)%3] * v2[(j+2)%3]) - (v1[(j+2)%3] * v2[(j+1)%3]);
+			wire ? glBegin(GL_LINE_STRIP) : glBegin(GL_POLYGON);
+				setMaterial(object_ambient, object_difusa, object_especular, object_brilho, object_emissao);
+				glNormal3fv(normal);
+				glVertex3fv(p[0][i-1]);
+				glVertex3fv(p[1][i-1]);
+				glVertex3fv(p[1][i]);
+				glVertex3fv(p[0][i-1]);
+			glEnd();
+			for (int j = 0; j < 3; j++)
+			{
+				v1[j] = p[0][i-1][j] - p[0][i][j];
+				v2[j] = p[1][i][j] - p[0][i][j];
+			}
+			for (int j = 0; j < 3; j++)
+				normal[j] = (v1[(j+1)%3] * v2[(j+2)%3]) - (v1[(j+2)%3] * v2[(j+1)%3]);
+			wire ? glBegin(GL_LINE_STRIP) : glBegin(GL_POLYGON);
+				setMaterial(object_ambient, object_difusa, object_especular, object_brilho, object_emissao);
+				glNormal3fv(normal);
+				glVertex3fv(p[1][i]);
+				glVertex3fv(p[0][i]);
+				glVertex3fv(p[0][i-1]);
+			glEnd();
+		}
+		for (int i = 0; i <= smooth; i++)
+			for (int j = 0; j < 3; j++)
+				p[0][i][j] = p[1][i][j];
+	}
 }
